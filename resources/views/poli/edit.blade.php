@@ -11,7 +11,7 @@
 
         @include('poli._form')
 
-        <button type="submit">Simpan Perubahan</button>
-        <a href="{{ route('poli.index') }}">Batal</a>
+        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+        <a href="{{ route('poli.index') }}" class="btn btn-sm btn-outline-secondary">Batal</a>
     </form>
 @endsection

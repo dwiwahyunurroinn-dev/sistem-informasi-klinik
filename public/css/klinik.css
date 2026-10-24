@@ -1,0 +1,58 @@
+/* Penyesuaian sederhana; warna mengikuti template AdminLTE dosen. */
+.app-main,
+.app-content,
+.klinik-content {
+    min-width: 0;
+}
+
+.klinik-content > h1 {
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+
+.klinik-content table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.klinik-content th,
+.klinik-content td {
+    padding: .75rem;
+    border: 1px solid var(--bs-border-color);
+    vertical-align: middle;
+}
+
+.klinik-content > form {
+    max-width: 720px;
+}
+
+.klinik-content label {
+    margin-bottom: .375rem;
+    font-weight: 600;
+}
+
+.klinik-content input:not([type="hidden"]),
+.klinik-content select,
+.klinik-content textarea {
+    width: 100%;
+    padding: .5rem .75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+.klinik-content .is-invalid {
+    border-color: var(--bs-danger);
+}
+
+.klinik-content textarea {
+    min-height: 100px;
+}
+
+.klinik-content input:focus,
+.klinik-content select:focus,
+.klinik-content textarea:focus {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 1px;
+}

@@ -3,7 +3,7 @@
 @section('title', 'Data Pasien')
 
 @section('content')
-    <h1>Data Pasien</h1>
+    <h1>{{ $judul }}</h1>
     <p>Jumlah pasien: {{ $jumlahPasien }}</p>
 
     @if (session('success'))
@@ -13,7 +13,7 @@
     @endif
 
     <p>
-        <a href="{{ route('pasien.create') }}">Tambah Pasien</a>
+        <a href="{{ route('pasien.create') }}" class="btn btn-sm btn-outline-secondary">Tambah Pasien</a>
     </p>
 
     <div style="overflow-x: auto;">
@@ -50,7 +50,7 @@
                         <td>{{ $patient->address ?? '-' }}</td>
                         <td>{{ $patient->phone ?? '-' }}</td>
                         <td>
-                            <a href="{{ route('pasien.edit', $patient->id) }}">
+                            <a href="{{ route('pasien.edit', $patient->id) }}" class="btn btn-sm btn-outline-secondary">
                                 Edit
                             </a>
 
@@ -61,7 +61,7 @@
                                 @csrf
                                 @method('DELETE')
 
-                                <button type="submit">Hapus</button>
+                                <button type="submit" class="btn btn-primary">Hapus</button>
                             </form>
                         </td>
                     </tr>

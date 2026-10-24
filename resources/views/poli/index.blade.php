@@ -7,18 +7,19 @@
     <p>Jumlah poli: {{ $polis->count() }}</p>
 
     @if (session('success'))
-        <p role="status" style="color: green;">
+        <div class="alert alert-success" role="status">
             {{ session('success') }}
-        </p>
+        </div>
     @endif
 
     <p>
-        <a href="{{ route('poli.create') }}">Tambah Poli</a>
+        <a href="{{ route('poli.create') }}" class="btn btn-primary">
+            Tambah Poli
+        </a>
     </p>
 
-    <div style="overflow-x: auto;">
-        <table border="1" cellpadding="10" cellspacing="0"
-               style="width: 100%; border-collapse: collapse;">
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped align-middle">
             <thead>
                 <tr>
                     <th>No.</th>
@@ -44,24 +45,41 @@
                             @endif
                         </td>
                         <td>
-                            <a href="{{ route('poli.edit', $poli->id) }}">
-                                Edit
-                            </a>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a
+                                    href="{{ route('poli.show', $poli->id) }}"
+                                    class="btn btn-sm btn-info"
+                                >
+                                    Detail
+                                </a>
 
-                            <form action="{{ route('poli.destroy', $poli->id) }}"
-                                  method="POST"
-                                  style="display: inline;"
-                                  onsubmit="return confirm('Hapus data poli ini?')">
-                                @csrf
-                                @method('DELETE')
+                                <a
+                                    href="{{ route('poli.edit', $poli->id) }}"
+                                    class="btn btn-sm btn-primary"
+                                >
+                                    Edit
+                                </a>
 
-                                <button type="submit">Hapus</button>
-                            </form>
+                                <form
+                                    action="{{ route('poli.destroy', $poli->id) }}"
+                                    method="POST"
+                                    onsubmit="return confirm('Hapus poli ini? Dokter tetap tersimpan, tetapi hubungan ke poli ini akan dikosongkan.')"
+                                >
+                                    @csrf
+                                    @method('DELETE')
+
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        Hapus
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6">Belum ada data poli.</td>
+                        <td colspan="6" class="text-center">
+                            Belum ada data poli.
+                        </td>
                     </tr>
                 @endforelse
             </tbody>

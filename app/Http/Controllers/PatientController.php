@@ -84,7 +84,23 @@ class PatientController extends Controller
 
     public function destroy(Patient $pasien)
     {
-        $pasien->delete();
+        if ($pasien->registrations()->exists()) {
+            return redirect()
+                ->route('pasien.index')
+                ->with('error', 'Pasien tidak dapat dihapus karena memiliki data pendaftaran.');
+        }
+
+        try {
+            $pasien->delete();
+        } catch (\Illuminate\Database\QueryException $exception) {
+            if ((string) $exception->getCode() !== '23000') {
+                throw $exception;
+            }
+
+            return redirect()
+                ->route('pasien.index')
+                ->with('error', 'Pasien tidak dapat dihapus karena masih digunakan oleh data lain.');
+        }
 
         return redirect()
             ->route('pasien.index')

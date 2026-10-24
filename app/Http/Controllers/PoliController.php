@@ -15,6 +15,15 @@ class PoliController extends Controller
         return view('poli.index', compact('polis'));
     }
 
+    public function show(Poli $poli)
+    {
+        $poli->load([
+            'doctors' => fn ($query) => $query->orderBy('doctor_code'),
+        ]);
+
+        return view('poli.show', compact('poli'));
+    }
+
     public function create()
     {
         return view('poli.create');
