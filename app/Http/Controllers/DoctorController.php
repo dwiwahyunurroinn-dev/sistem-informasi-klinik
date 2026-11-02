@@ -9,13 +9,58 @@ use Illuminate\Validation\Rule;
 
 class DoctorController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $doctors = Doctor::with('poli')
-            ->orderBy('doctor_code')
-            ->get();
+        $search = $request->query('search');
+        $search = is_string($search) ? trim($search) : '';
 
-        return view('dokter.index', compact('doctors'));
+        $poliId = $request->query('poli_id');
+        $poliId = is_string($poliId) && ctype_digit($poliId)
+            ? (int) $poliId
+            : null;
+
+        $status = $request->query('status');
+        $status = in_array($status, ['1', '0'], true) ? $status : null;
+
+        $allowedSorts = ['name', 'doctor_code'];
+        $sort = $request->query('sort');
+        $sort = in_array($sort, $allowedSorts, true) ? $sort : 'name';
+
+        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
+
+        $doctors = Doctor::with('poli')
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('doctor_code', 'like', "%{$search}%");
+                });
+            })
+            ->when($poliId !== null, function ($query) use ($poliId) {
+                $query->where('poli_id', $poliId);
+            })
+            ->when($status !== null, function ($query) use ($status) {
+                $query->where('is_active', $status === '1');
+            })
+            ->orderBy($sort, $direction)
+            ->orderBy('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        // Semua poli (termasuk nonaktif) agar dokter di poli nonaktif tetap bisa difilter.
+        $polis = Poli::orderBy('name')->get(['id', 'name']);
+
+        $isFiltered = $search !== '' || $poliId !== null || $status !== null;
+
+        return view('dokter.index', compact(
+            'doctors',
+            'polis',
+            'search',
+            'poliId',
+            'status',
+            'sort',
+            'direction',
+            'isFiltered'
+        ));
     }
 
     public function create()

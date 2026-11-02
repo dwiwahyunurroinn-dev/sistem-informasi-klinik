@@ -8,16 +8,48 @@ use Illuminate\Validation\Rule;
 
 class PatientController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $judul = 'Data Pasien';
-        $patients = Patient::all();
-        $jumlahPasien = $patients->count();
 
-        return view(
-            'pasien.index',
-            compact('judul', 'jumlahPasien', 'patients')
-        );
+        $search = $request->query('search');
+        $search = is_string($search) ? trim($search) : '';
+
+        $gender = $request->query('gender');
+        $gender = in_array($gender, ['L', 'P'], true) ? $gender : null;
+
+        $allowedSorts = ['name', 'medical_record_number', 'created_at'];
+        $sort = $request->query('sort');
+        $sort = in_array($sort, $allowedSorts, true) ? $sort : 'name';
+
+        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
+
+        $patients = Patient::query()
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('medical_record_number', 'like', "%{$search}%");
+                });
+            })
+            ->when($gender !== null, function ($query) use ($gender) {
+                $query->where('gender', $gender);
+            })
+            ->orderBy($sort, $direction)
+            ->orderBy('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        $isFiltered = $search !== '' || $gender !== null;
+
+        return view('pasien.index', compact(
+            'judul',
+            'patients',
+            'search',
+            'gender',
+            'sort',
+            'direction',
+            'isFiltered'
+        ));
     }
 
     public function create()

@@ -1,0 +1,417 @@
+diff --git a/app/Http/Controllers/RegistrationController.php b/app/Http/Controllers/RegistrationController.php
+index b8e3669..a6abba1 100644
+--- a/app/Http/Controllers/RegistrationController.php
++++ b/app/Http/Controllers/RegistrationController.php
+@@ -2,7 +2,11 @@
+ 
+ namespace App\Http\Controllers;
+ 
++use App\Models\Doctor;
++use App\Models\Patient;
+ use App\Models\Registration;
++use Illuminate\Http\Request;
++use Illuminate\Validation\Rule;
+ 
+ class RegistrationController extends Controller
+ {
+@@ -15,4 +19,112 @@ public function index()
+ 
+         return view('pendaftaran.index', compact('registrations'));
+     }
++
++    public function create()
++    {
++        return view('pendaftaran.create', $this->formData());
++    }
++
++    public function store(Request $request)
++    {
++        $validated = $request->validate($this->rules());
++
++        Registration::create($validated);
++
++        return redirect()
++            ->route('pendaftaran.index')
++            ->with('success', 'Data pendaftaran berhasil ditambahkan.');
++    }
++
++    public function edit(Registration $pendaftaran)
++    {
++        return view('pendaftaran.edit', $this->formData($pendaftaran));
++    }
++
++    public function update(Request $request, Registration $pendaftaran)
++    {
++        $validated = $request->validate($this->rules($pendaftaran));
++
++        $pendaftaran->update($validated);
++
++        return redirect()
++            ->route('pendaftaran.index')
++            ->with('success', 'Data pendaftaran berhasil diperbarui.');
++    }
++
++    public function destroy(Registration $pendaftaran)
++    {
++        $pendaftaran->delete();
++
++        return redirect()
++            ->route('pendaftaran.index')
++            ->with('success', 'Data pendaftaran berhasil dihapus.');
++    }
++
++    /**
++     * Aturan validasi untuk tambah dan edit pendaftaran.
++     */
++    private function rules(?Registration $pendaftaran = null): array
++    {
++        return [
++            'patient_id' => [
++                'required',
++                'integer',
++                Rule::exists('patients', 'id'),
++            ],
++            'doctor_id' => [
++                'required',
++                'integer',
++                Rule::exists('doctors', 'id')->where(
++                    function ($query) use ($pendaftaran) {
++                        $query->where(function ($query) use ($pendaftaran) {
++                            $query->where('is_active', true);
++
++                            // Saat edit, dokter lama tetap boleh dipilih
++                            // walaupun statusnya sudah tidak aktif.
++                            if ($pendaftaran !== null) {
++                                $query->orWhere('id', $pendaftaran->doctor_id);
++                            }
++                        });
++                    }
++                ),
++            ],
++            'registration_date' => 'required|date',
++            'complaint' => 'nullable|string|max:255',
++            'status' => [
++                'required',
++                Rule::in(array_keys(Registration::STATUSES)),
++            ],
++        ];
++    }
++
++    /**
++     * Data untuk dropdown pada form tambah dan edit.
++     */
++    private function formData(?Registration $pendaftaran = null): array
++    {
++        $patients = Patient::orderBy('name')
++            ->get(['id', 'name', 'medical_record_number']);
++
++        $doctors = Doctor::where(function ($query) use ($pendaftaran) {
++            $query->where('is_active', true);
++
++            if ($pendaftaran !== null) {
++                $query->orWhere('id', $pendaftaran->doctor_id);
++            }
++        })
++            ->orderBy('name')
++            ->get(['id', 'name', 'specialization']);
++
++        $statuses = Registration::STATUSES;
++        $defaultDate = now('Asia/Jakarta')->toDateString();
++
++        return compact(
++            'pendaftaran',
++            'patients',
++            'doctors',
++            'statuses',
++            'defaultDate'
++        );
++    }
+ }
+diff --git a/app/Models/Registration.php b/app/Models/Registration.php
+index 0a48781..8fda477 100644
+--- a/app/Models/Registration.php
++++ b/app/Models/Registration.php
+@@ -7,6 +7,15 @@
+ 
+ class Registration extends Model
+ {
++    /**
++     * Daftar status pendaftaran: nilai di database => label dan warna badge.
++     */
++    public const STATUSES = [
++        'waiting' => ['label' => 'Menunggu', 'badge' => 'text-bg-warning'],
++        'done' => ['label' => 'Selesai', 'badge' => 'text-bg-success'],
++        'cancelled' => ['label' => 'Dibatalkan', 'badge' => 'text-bg-danger'],
++    ];
++
+     protected $fillable = [
+         'patient_id',
+         'doctor_id',
+@@ -22,6 +31,16 @@ protected function casts(): array
+         ];
+     }
+ 
++    public function statusLabel(): string
++    {
++        return self::STATUSES[$this->status]['label'] ?? (string) $this->status;
++    }
++
++    public function statusBadge(): string
++    {
++        return self::STATUSES[$this->status]['badge'] ?? 'text-bg-secondary';
++    }
++
+     public function patient(): BelongsTo
+     {
+         return $this->belongsTo(Patient::class);
+diff --git a/resources/views/pendaftaran/_form.blade.php b/resources/views/pendaftaran/_form.blade.php
+new file mode 100644
+index 0000000..44e8942
+--- /dev/null
++++ b/resources/views/pendaftaran/_form.blade.php
+@@ -0,0 +1,107 @@
++<div class="mb-3">
++    <label for="patient_id" class="form-label">Pasien</label>
++    <select
++        id="patient_id"
++        name="patient_id"
++        class="form-select @error('patient_id') is-invalid @enderror"
++    >
++        <option value="">-- Pilih Pasien --</option>
++
++        @foreach ($patients as $patient)
++            <option
++                value="{{ $patient->id }}"
++                @selected(
++                    (string) old('patient_id', $pendaftaran?->patient_id)
++                    === (string) $patient->id
++                )
++            >
++                {{ $patient->medical_record_number }} - {{ $patient->name }}
++            </option>
++        @endforeach
++    </select>
++
++    @error('patient_id')
++        <div class="invalid-feedback">{{ $message }}</div>
++    @enderror
++</div>
++
++<div class="mb-3">
++    <label for="doctor_id" class="form-label">Dokter</label>
++    <select
++        id="doctor_id"
++        name="doctor_id"
++        class="form-select @error('doctor_id') is-invalid @enderror"
++    >
++        <option value="">-- Pilih Dokter --</option>
++
++        @foreach ($doctors as $doctor)
++            <option
++                value="{{ $doctor->id }}"
++                @selected(
++                    (string) old('doctor_id', $pendaftaran?->doctor_id)
++                    === (string) $doctor->id
++                )
++            >
++                {{ $doctor->name }} ({{ $doctor->specialization }})
++            </option>
++        @endforeach
++    </select>
++
++    @error('doctor_id')
++        <div class="invalid-feedback">{{ $message }}</div>
++    @enderror
++</div>
++
++<div class="mb-3">
++    <label for="registration_date" class="form-label">Tanggal Pendaftaran</label>
++    <input
++        id="registration_date"
++        type="date"
++        name="registration_date"
++        class="form-control @error('registration_date') is-invalid @enderror"
++        value="{{ old('registration_date', $pendaftaran?->registration_date?->format('Y-m-d') ?? $defaultDate) }}"
++    >
++    @error('registration_date')
++        <div class="invalid-feedback">{{ $message }}</div>
++    @enderror
++</div>
++
++<div class="mb-3">
++    <label for="complaint" class="form-label">Keluhan (opsional)</label>
++    <input
++        id="complaint"
++        type="text"
++        name="complaint"
++        class="form-control @error('complaint') is-invalid @enderror"
++        maxlength="255"
++        value="{{ old('complaint', $pendaftaran?->complaint) }}"
++    >
++    @error('complaint')
++        <div class="invalid-feedback">{{ $message }}</div>
++    @enderror
++</div>
++
++<div class="mb-3">
++    <label for="status" class="form-label">Status</label>
++    <select
++        id="status"
++        name="status"
++        class="form-select @error('status') is-invalid @enderror"
++    >
++        @foreach ($statuses as $value => $status)
++            <option
++                value="{{ $value }}"
++                @selected(
++                    (string) old('status', $pendaftaran?->status ?? 'waiting')
++                    === (string) $value
++                )
++            >
++                {{ $status['label'] }}
++            </option>
++        @endforeach
++    </select>
++
++    @error('status')
++        <div class="invalid-feedback">{{ $message }}</div>
++    @enderror
++</div>
+diff --git a/resources/views/pendaftaran/create.blade.php b/resources/views/pendaftaran/create.blade.php
+new file mode 100644
+index 0000000..f945858
+--- /dev/null
++++ b/resources/views/pendaftaran/create.blade.php
+@@ -0,0 +1,18 @@
++@extends('layouts.app')
++
++@section('title', 'Tambah Pendaftaran')
++
++@section('content')
++    <h1>Tambah Pendaftaran</h1>
++
++    <form action="{{ route('pendaftaran.store') }}" method="POST">
++        @csrf
++
++        @include('pendaftaran._form')
++
++        <button type="submit" class="btn btn-primary">Simpan</button>
++        <a href="{{ route('pendaftaran.index') }}" class="btn btn-secondary">
++            Batal
++        </a>
++    </form>
++@endsection
+diff --git a/resources/views/pendaftaran/edit.blade.php b/resources/views/pendaftaran/edit.blade.php
+new file mode 100644
+index 0000000..69a95d4
+--- /dev/null
++++ b/resources/views/pendaftaran/edit.blade.php
+@@ -0,0 +1,21 @@
++@extends('layouts.app')
++
++@section('title', 'Edit Pendaftaran')
++
++@section('content')
++    <h1>Edit Pendaftaran</h1>
++
++    <form action="{{ route('pendaftaran.update', $pendaftaran->id) }}" method="POST">
++        @csrf
++        @method('PUT')
++
++        @include('pendaftaran._form')
++
++        <button type="submit" class="btn btn-primary">
++            Simpan Perubahan
++        </button>
++        <a href="{{ route('pendaftaran.index') }}" class="btn btn-secondary">
++            Batal
++        </a>
++    </form>
++@endsection
+diff --git a/resources/views/pendaftaran/index.blade.php b/resources/views/pendaftaran/index.blade.php
+index c151e48..5b8336b 100644
+--- a/resources/views/pendaftaran/index.blade.php
++++ b/resources/views/pendaftaran/index.blade.php
+@@ -3,6 +3,18 @@
+ @section('title', 'Pendaftaran Pasien')
+ 
+ @section('content')
++    @if (session('success'))
++        <div class="alert alert-success" role="status">
++            {{ session('success') }}
++        </div>
++    @endif
++
++    <p>
++        <a href="{{ route('pendaftaran.create') }}" class="btn btn-primary">
++            Tambah Pendaftaran
++        </a>
++    </p>
++
+     <p>Jumlah pendaftaran: {{ $registrations->count() }}</p>
+ 
+     <div class="table-responsive">
+@@ -15,6 +27,7 @@
+                     <th>Dokter</th>
+                     <th>Keluhan</th>
+                     <th>Status</th>
++                    <th>Aksi</th>
+                 </tr>
+             </thead>
+             <tbody>
+@@ -25,11 +38,37 @@
+                         <td>{{ $registration->patient?->name ?? '-' }}</td>
+                         <td>{{ $registration->doctor?->name ?? '-' }}</td>
+                         <td>{{ $registration->complaint ?? '-' }}</td>
+-                        <td>{{ $registration->status }}</td>
++                        <td>
++                            <span class="badge {{ $registration->statusBadge() }}">
++                                {{ $registration->statusLabel() }}
++                            </span>
++                        </td>
++                        <td>
++                            <a
++                                href="{{ route('pendaftaran.edit', $registration->id) }}"
++                                class="btn btn-sm btn-warning"
++                            >
++                                Edit
++                            </a>
++
++                            <form
++                                action="{{ route('pendaftaran.destroy', $registration->id) }}"
++                                method="POST"
++                                class="d-inline"
++                                onsubmit="return confirm('Hapus data pendaftaran ini?')"
++                            >
++                                @csrf
++                                @method('DELETE')
++
++                                <button type="submit" class="btn btn-sm btn-danger">
++                                    Hapus
++                                </button>
++                            </form>
++                        </td>
+                     </tr>
+                 @empty
+                     <tr>
+-                        <td colspan="6" class="text-center">
++                        <td colspan="7" class="text-center">
+                             Belum ada data pendaftaran.
+                         </td>
+                     </tr>
+diff --git a/routes/web.php b/routes/web.php
+index cc9add1..104252e 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -21,8 +21,9 @@
+ 
+ Route::resource('poli', PoliController::class);
+ 
+-Route::get('/pendaftaran', [RegistrationController::class, 'index'])
+-    ->name('pendaftaran.index');
++Route::resource('pendaftaran', RegistrationController::class)
++    ->parameters(['pendaftaran' => 'pendaftaran'])
++    ->except(['show']);
+ 
+ Route::get('/jadwal', [ScheduleController::class, 'index'])
+     ->name('jadwal.index');

@@ -4,7 +4,6 @@
 
 @section('content')
     <h1>{{ $judul }}</h1>
-    <p>Jumlah pasien: {{ $jumlahPasien }}</p>
 
     @if (session('success'))
         <p role="status" style="color: green;">
@@ -15,6 +14,52 @@
     <p>
         <a href="{{ route('pasien.create') }}" class="btn btn-sm btn-outline-secondary">Tambah Pasien</a>
     </p>
+
+    <div class="mb-3">
+        <form method="GET" action="{{ route('pasien.index') }}" class="row g-2">
+            <div class="col-md-3">
+                <input type="text"
+                       name="search"
+                       value="{{ $search }}"
+                       placeholder="Nama / No. RM"
+                       class="form-control">
+            </div>
+
+            <div class="col-md-2">
+                <select name="gender" class="form-select">
+                    <option value="">Semua Gender</option>
+                    <option value="L" @selected($gender === 'L')>Laki-laki</option>
+                    <option value="P" @selected($gender === 'P')>Perempuan</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <select name="sort" class="form-select">
+                    <option value="name" @selected($sort === 'name')>Urut: Nama</option>
+                    <option value="medical_record_number" @selected($sort === 'medical_record_number')>Urut: Nomor RM</option>
+                    <option value="created_at" @selected($sort === 'created_at')>Urut: Tanggal Input</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <select name="direction" class="form-select">
+                    <option value="asc" @selected($direction === 'asc')>A-Z / Terlama</option>
+                    <option value="desc" @selected($direction === 'desc')>Z-A / Terbaru</option>
+                </select>
+            </div>
+
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Terapkan</button>
+                <a href="{{ route('pasien.index') }}" class="btn btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    @if ($search !== '')
+        <p>Hasil pencarian: <strong>{{ $search }}</strong></p>
+    @endif
+
+    <p>Menampilkan {{ $patients->count() }} dari {{ $patients->total() }} data.</p>
 
     <div style="overflow-x: auto;">
         <table border="1" cellpadding="10" cellspacing="0"
@@ -34,7 +79,7 @@
             <tbody>
                 @forelse ($patients as $patient)
                     <tr>
-                        <td>{{ $loop->iteration }}</td>
+                        <td>{{ $patients->firstItem() + $loop->index }}</td>
                         <td>{{ $patient->medical_record_number }}</td>
                         <td>{{ $patient->name }}</td>
                         <td>
@@ -67,10 +112,21 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8">Belum ada data pasien.</td>
+                        <td colspan="8" class="text-center">
+                            @if ($isFiltered)
+                                Tidak ada pasien yang cocok dengan pencarian atau filter.
+                                <a href="{{ route('pasien.index') }}">Reset filter</a>
+                            @else
+                                Belum ada data pasien.
+                            @endif
+                        </td>
                     </tr>
                 @endforelse
             </tbody>
         </table>
+    </div>
+
+    <div class="mt-3">
+        {{ $patients->links() }}
     </div>
 @endsection

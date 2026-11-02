@@ -4,7 +4,6 @@
 
 @section('content')
     <h1>Data Dokter</h1>
-    <p>Jumlah dokter: {{ $doctors->count() }}</p>
 
     @if (session('success'))
         <div class="alert alert-success" role="status">
@@ -17,6 +16,62 @@
             Tambah Dokter
         </a>
     </p>
+
+    <div class="mb-3">
+        <form method="GET" action="{{ route('dokter.index') }}" class="row g-2">
+            <div class="col-md-3">
+                <input type="text"
+                       name="search"
+                       value="{{ $search }}"
+                       placeholder="Nama / Kode Dokter"
+                       class="form-control">
+            </div>
+
+            <div class="col-md-2">
+                <select name="poli_id" class="form-select">
+                    <option value="">Semua Poli</option>
+                    @foreach ($polis as $poli)
+                        <option value="{{ $poli->id }}" @selected($poliId === $poli->id)>
+                            {{ $poli->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">Semua Status</option>
+                    <option value="1" @selected($status === '1')>Aktif</option>
+                    <option value="0" @selected($status === '0')>Tidak Aktif</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <select name="sort" class="form-select">
+                    <option value="name" @selected($sort === 'name')>Urut: Nama</option>
+                    <option value="doctor_code" @selected($sort === 'doctor_code')>Urut: Kode</option>
+                </select>
+            </div>
+
+            <div class="col-md-1">
+                <select name="direction" class="form-select">
+                    <option value="asc" @selected($direction === 'asc')>A-Z</option>
+                    <option value="desc" @selected($direction === 'desc')>Z-A</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Terapkan</button>
+                <a href="{{ route('dokter.index') }}" class="btn btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    @if ($search !== '')
+        <p>Hasil pencarian: <strong>{{ $search }}</strong></p>
+    @endif
+
+    <p>Menampilkan {{ $doctors->count() }} dari {{ $doctors->total() }} data.</p>
 
     <div class="table-responsive">
         <table class="table table-bordered table-striped align-middle">
@@ -35,7 +90,7 @@
             <tbody>
                 @forelse ($doctors as $doctor)
                     <tr>
-                        <td>{{ $loop->iteration }}</td>
+                        <td>{{ $doctors->firstItem() + $loop->index }}</td>
                         <td>{{ $doctor->doctor_code }}</td>
                         <td>{{ $doctor->name }}</td>
                         <td>{{ $doctor->specialization }}</td>
@@ -60,11 +115,20 @@
                 @empty
                     <tr>
                         <td colspan="8" class="text-center">
-                            Belum ada data dokter.
+                            @if ($isFiltered)
+                                Tidak ada dokter yang cocok dengan pencarian atau filter.
+                                <a href="{{ route('dokter.index') }}">Reset filter</a>
+                            @else
+                                Belum ada data dokter.
+                            @endif
                         </td>
                     </tr>
                 @endforelse
             </tbody>
         </table>
+    </div>
+
+    <div class="mt-3">
+        {{ $doctors->links() }}
     </div>
 @endsection

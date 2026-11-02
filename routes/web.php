@@ -21,8 +21,9 @@ Route::resource('dokter', DoctorController::class)
 
 Route::resource('poli', PoliController::class);
 
-Route::get('/pendaftaran', [RegistrationController::class, 'index'])
-    ->name('pendaftaran.index');
+Route::resource('pendaftaran', RegistrationController::class)
+    ->parameters(['pendaftaran' => 'pendaftaran'])
+    ->except(['show']);
 
 Route::get('/jadwal', [ScheduleController::class, 'index'])
     ->name('jadwal.index');

@@ -52,6 +52,34 @@ class PatientSeeder extends Seeder
             ],
         ];
 
+        // Data tambahan agar pagination (10 data per halaman) bisa diuji.
+        // Nomor RM dimulai dari RM1001 supaya tidak bentrok dengan data
+        // yang ditambahkan manual lewat form (RM0006, RM0007, dst).
+        $extra = [
+            ['Andi', 'L'], ['Fitri', 'P'], ['Joko', 'L'], ['Lestari', 'P'],
+            ['Eko', 'L'], ['Nina', 'P'], ['Hadi', 'L'], ['Wulan', 'P'],
+            ['Agus', 'L'], ['Rani', 'P'], ['Bayu', 'L'], ['Intan', 'P'],
+            ['Dimas', 'L'], ['Maya', 'P'], ['Fajar', 'L'], ['Sari', 'P'],
+            ['Yoga', 'L'], ['Ayu', 'P'], ['Tono', 'L'], ['Putri', 'P'],
+        ];
+        $cities = ['Kudus', 'Jepara', 'Demak', 'Pati', 'Semarang'];
+
+        foreach ($extra as $i => [$name, $gender]) {
+            $patients[] = [
+                'medical_record_number' => sprintf('RM%04d', 1001 + $i),
+                'name' => $name,
+                'gender' => $gender,
+                'birth_date' => sprintf(
+                    '%d-%02d-%02d',
+                    1985 + ($i % 20),
+                    1 + ($i % 12),
+                    1 + ($i % 28)
+                ),
+                'address' => $cities[$i % count($cities)],
+                'phone' => sprintf('08123456%04d', 7000 + $i),
+            ];
+        }
+
         foreach ($patients as $patient) {
             Patient::updateOrCreate(
                 [

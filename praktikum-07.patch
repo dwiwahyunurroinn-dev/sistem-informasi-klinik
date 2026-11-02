@@ -1,0 +1,517 @@
+diff --git a/app/Http/Controllers/DoctorController.php b/app/Http/Controllers/DoctorController.php
+index c8e2940..ffc63a0 100644
+--- a/app/Http/Controllers/DoctorController.php
++++ b/app/Http/Controllers/DoctorController.php
+@@ -9,13 +9,58 @@
+ 
+ class DoctorController extends Controller
+ {
+-    public function index()
++    public function index(Request $request)
+     {
+-        $doctors = Doctor::with('poli')
+-            ->orderBy('doctor_code')
+-            ->get();
++        $search = $request->query('search');
++        $search = is_string($search) ? trim($search) : '';
++
++        $poliId = $request->query('poli_id');
++        $poliId = is_string($poliId) && ctype_digit($poliId)
++            ? (int) $poliId
++            : null;
++
++        $status = $request->query('status');
++        $status = in_array($status, ['1', '0'], true) ? $status : null;
+ 
+-        return view('dokter.index', compact('doctors'));
++        $allowedSorts = ['name', 'doctor_code'];
++        $sort = $request->query('sort');
++        $sort = in_array($sort, $allowedSorts, true) ? $sort : 'name';
++
++        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
++
++        $doctors = Doctor::with('poli')
++            ->when($search !== '', function ($query) use ($search) {
++                $query->where(function ($q) use ($search) {
++                    $q->where('name', 'like', "%{$search}%")
++                        ->orWhere('doctor_code', 'like', "%{$search}%");
++                });
++            })
++            ->when($poliId !== null, function ($query) use ($poliId) {
++                $query->where('poli_id', $poliId);
++            })
++            ->when($status !== null, function ($query) use ($status) {
++                $query->where('is_active', $status === '1');
++            })
++            ->orderBy($sort, $direction)
++            ->orderBy('id')
++            ->paginate(10)
++            ->withQueryString();
++
++        // Semua poli (termasuk nonaktif) agar dokter di poli nonaktif tetap bisa difilter.
++        $polis = Poli::orderBy('name')->get(['id', 'name']);
++
++        $isFiltered = $search !== '' || $poliId !== null || $status !== null;
++
++        return view('dokter.index', compact(
++            'doctors',
++            'polis',
++            'search',
++            'poliId',
++            'status',
++            'sort',
++            'direction',
++            'isFiltered'
++        ));
+     }
+ 
+     public function create()
+diff --git a/app/Http/Controllers/PatientController.php b/app/Http/Controllers/PatientController.php
+index 2d4bfa2..9a2e344 100644
+--- a/app/Http/Controllers/PatientController.php
++++ b/app/Http/Controllers/PatientController.php
+@@ -8,16 +8,48 @@
+ 
+ class PatientController extends Controller
+ {
+-    public function index()
++    public function index(Request $request)
+     {
+         $judul = 'Data Pasien';
+-        $patients = Patient::all();
+-        $jumlahPasien = $patients->count();
+ 
+-        return view(
+-            'pasien.index',
+-            compact('judul', 'jumlahPasien', 'patients')
+-        );
++        $search = $request->query('search');
++        $search = is_string($search) ? trim($search) : '';
++
++        $gender = $request->query('gender');
++        $gender = in_array($gender, ['L', 'P'], true) ? $gender : null;
++
++        $allowedSorts = ['name', 'medical_record_number', 'created_at'];
++        $sort = $request->query('sort');
++        $sort = in_array($sort, $allowedSorts, true) ? $sort : 'name';
++
++        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
++
++        $patients = Patient::query()
++            ->when($search !== '', function ($query) use ($search) {
++                $query->where(function ($q) use ($search) {
++                    $q->where('name', 'like', "%{$search}%")
++                        ->orWhere('medical_record_number', 'like', "%{$search}%");
++                });
++            })
++            ->when($gender !== null, function ($query) use ($gender) {
++                $query->where('gender', $gender);
++            })
++            ->orderBy($sort, $direction)
++            ->orderBy('id')
++            ->paginate(10)
++            ->withQueryString();
++
++        $isFiltered = $search !== '' || $gender !== null;
++
++        return view('pasien.index', compact(
++            'judul',
++            'patients',
++            'search',
++            'gender',
++            'sort',
++            'direction',
++            'isFiltered'
++        ));
+     }
+ 
+     public function create()
+diff --git a/app/Providers/AppServiceProvider.php b/app/Providers/AppServiceProvider.php
+index 452e6b6..86b1719 100644
+--- a/app/Providers/AppServiceProvider.php
++++ b/app/Providers/AppServiceProvider.php
+@@ -2,6 +2,7 @@
+ 
+ namespace App\Providers;
+ 
++use Illuminate\Pagination\Paginator;
+ use Illuminate\Support\ServiceProvider;
+ 
+ class AppServiceProvider extends ServiceProvider
+@@ -19,6 +20,6 @@ public function register(): void
+      */
+     public function boot(): void
+     {
+-        //
++        Paginator::useBootstrapFive();
+     }
+ }
+diff --git a/database/seeders/DoctorSeeder.php b/database/seeders/DoctorSeeder.php
+index f77d5e6..e209b0f 100644
+--- a/database/seeders/DoctorSeeder.php
++++ b/database/seeders/DoctorSeeder.php
+@@ -3,6 +3,7 @@
+ namespace Database\Seeders;
+ 
+ use App\Models\Doctor;
++use App\Models\Poli;
+ use Illuminate\Database\Seeder;
+ 
+ class DoctorSeeder extends Seeder
+@@ -12,6 +13,7 @@ public function run(): void
+         $doctors = [
+             [
+                 'doctor_code' => 'DR001',
++                'poli_code' => 'POL001',
+                 'name' => 'dr. Ahmad',
+                 'specialization' => 'Umum',
+                 'phone' => '081234560001',
+@@ -19,6 +21,7 @@ public function run(): void
+             ],
+             [
+                 'doctor_code' => 'DR002',
++                'poli_code' => 'POL003',
+                 'name' => 'dr. Siti',
+                 'specialization' => 'Anak',
+                 'phone' => '081234560002',
+@@ -26,6 +29,7 @@ public function run(): void
+             ],
+             [
+                 'doctor_code' => 'DR003',
++                'poli_code' => 'POL004',
+                 'name' => 'dr. Budi',
+                 'specialization' => 'Penyakit Dalam',
+                 'phone' => null,
+@@ -33,6 +37,7 @@ public function run(): void
+             ],
+             [
+                 'doctor_code' => 'DR004',
++                'poli_code' => null,
+                 'name' => 'dr. Dewi',
+                 'specialization' => 'Kulit dan Kelamin',
+                 'phone' => '081234560004',
+@@ -40,6 +45,7 @@ public function run(): void
+             ],
+             [
+                 'doctor_code' => 'DR005',
++                'poli_code' => 'POL001',
+                 'name' => 'dr. Rizki',
+                 'specialization' => 'Bedah',
+                 'phone' => '081234560005',
+@@ -47,6 +53,7 @@ public function run(): void
+             ],
+             [
+                 'doctor_code' => 'DR006',
++                'poli_code' => 'POL005',
+                 'name' => 'dr. Rina',
+                 'specialization' => 'Mata',
+                 'phone' => null,
+@@ -54,6 +61,7 @@ public function run(): void
+             ],
+             [
+                 'doctor_code' => 'DR007',
++                'poli_code' => 'POL001',
+                 'name' => 'dr. Andi',
+                 'specialization' => 'THT',
+                 'phone' => '081234560007',
+@@ -61,6 +69,7 @@ public function run(): void
+             ],
+             [
+                 'doctor_code' => 'DR008',
++                'poli_code' => 'POL002',
+                 'name' => 'drg. Putri',
+                 'specialization' => 'Gigi',
+                 'phone' => '081234560008',
+@@ -68,11 +77,48 @@ public function run(): void
+             ],
+         ];
+ 
++        // Data tambahan agar pagination (10 data per halaman) bisa diuji.
++        // Kode dimulai dari DR101 supaya tidak bentrok dengan dokter
++        // yang ditambahkan manual lewat form (DR009, dst).
++        $extra = [
++            ['dr. Hadi', 'Umum', 'POL001', true],
++            ['dr. Wulan', 'Anak', 'POL003', true],
++            ['dr. Agus', 'Penyakit Dalam', 'POL004', false],
++            ['drg. Maya', 'Gigi', 'POL002', true],
++            ['dr. Fajar', 'Umum', 'POL001', true],
++            ['dr. Sari', 'Anak', 'POL003', true],
++            ['dr. Yoga', 'Penyakit Dalam', 'POL004', true],
++        ];
++
++        foreach ($extra as $i => [$name, $specialization, $poliCode, $active]) {
++            $doctors[] = [
++                'doctor_code' => sprintf('DR%03d', 101 + $i),
++                'name' => $name,
++                'specialization' => $specialization,
++                'phone' => sprintf('0812345%05d', 60000 + $i),
++                'is_active' => $active,
++                'poli_code' => $poliCode,
++            ];
++        }
++
++        $poliIds = Poli::pluck('id', 'code');
++
+         foreach ($doctors as $doctor) {
+-            Doctor::updateOrCreate(
++            $poliCode = $doctor['poli_code'];
++            unset($doctor['poli_code']);
++
++            $model = Doctor::updateOrCreate(
+                 ['doctor_code' => $doctor['doctor_code']],
+                 $doctor
+             );
++
++            // poli_id hanya diisi jika masih kosong, supaya pilihan poli
++            // yang sudah diatur lewat form tidak tertimpa.
++            $poliId = $poliCode !== null ? ($poliIds[$poliCode] ?? null) : null;
++
++            if ($model->poli_id === null && $poliId !== null) {
++                $model->update(['poli_id' => $poliId]);
++            }
+         }
+     }
+ }
+\ No newline at end of file
+diff --git a/database/seeders/PatientSeeder.php b/database/seeders/PatientSeeder.php
+index 81d9cac..ce70a02 100644
+--- a/database/seeders/PatientSeeder.php
++++ b/database/seeders/PatientSeeder.php
+@@ -52,6 +52,34 @@ public function run(): void
+             ],
+         ];
+ 
++        // Data tambahan agar pagination (10 data per halaman) bisa diuji.
++        // Nomor RM dimulai dari RM1001 supaya tidak bentrok dengan data
++        // yang ditambahkan manual lewat form (RM0006, RM0007, dst).
++        $extra = [
++            ['Andi', 'L'], ['Fitri', 'P'], ['Joko', 'L'], ['Lestari', 'P'],
++            ['Eko', 'L'], ['Nina', 'P'], ['Hadi', 'L'], ['Wulan', 'P'],
++            ['Agus', 'L'], ['Rani', 'P'], ['Bayu', 'L'], ['Intan', 'P'],
++            ['Dimas', 'L'], ['Maya', 'P'], ['Fajar', 'L'], ['Sari', 'P'],
++            ['Yoga', 'L'], ['Ayu', 'P'], ['Tono', 'L'], ['Putri', 'P'],
++        ];
++        $cities = ['Kudus', 'Jepara', 'Demak', 'Pati', 'Semarang'];
++
++        foreach ($extra as $i => [$name, $gender]) {
++            $patients[] = [
++                'medical_record_number' => sprintf('RM%04d', 1001 + $i),
++                'name' => $name,
++                'gender' => $gender,
++                'birth_date' => sprintf(
++                    '%d-%02d-%02d',
++                    1985 + ($i % 20),
++                    1 + ($i % 12),
++                    1 + ($i % 28)
++                ),
++                'address' => $cities[$i % count($cities)],
++                'phone' => sprintf('08123456%04d', 7000 + $i),
++            ];
++        }
++
+         foreach ($patients as $patient) {
+             Patient::updateOrCreate(
+                 [
+diff --git a/resources/views/dokter/index.blade.php b/resources/views/dokter/index.blade.php
+index ed64b80..277396d 100644
+--- a/resources/views/dokter/index.blade.php
++++ b/resources/views/dokter/index.blade.php
+@@ -4,7 +4,6 @@
+ 
+ @section('content')
+     <h1>Data Dokter</h1>
+-    <p>Jumlah dokter: {{ $doctors->count() }}</p>
+ 
+     @if (session('success'))
+         <div class="alert alert-success" role="status">
+@@ -18,6 +17,62 @@
+         </a>
+     </p>
+ 
++    <div class="mb-3">
++        <form method="GET" action="{{ route('dokter.index') }}" class="row g-2">
++            <div class="col-md-3">
++                <input type="text"
++                       name="search"
++                       value="{{ $search }}"
++                       placeholder="Nama / Kode Dokter"
++                       class="form-control">
++            </div>
++
++            <div class="col-md-2">
++                <select name="poli_id" class="form-select">
++                    <option value="">Semua Poli</option>
++                    @foreach ($polis as $poli)
++                        <option value="{{ $poli->id }}" @selected($poliId === $poli->id)>
++                            {{ $poli->name }}
++                        </option>
++                    @endforeach
++                </select>
++            </div>
++
++            <div class="col-md-2">
++                <select name="status" class="form-select">
++                    <option value="">Semua Status</option>
++                    <option value="1" @selected($status === '1')>Aktif</option>
++                    <option value="0" @selected($status === '0')>Tidak Aktif</option>
++                </select>
++            </div>
++
++            <div class="col-md-2">
++                <select name="sort" class="form-select">
++                    <option value="name" @selected($sort === 'name')>Urut: Nama</option>
++                    <option value="doctor_code" @selected($sort === 'doctor_code')>Urut: Kode</option>
++                </select>
++            </div>
++
++            <div class="col-md-1">
++                <select name="direction" class="form-select">
++                    <option value="asc" @selected($direction === 'asc')>A-Z</option>
++                    <option value="desc" @selected($direction === 'desc')>Z-A</option>
++                </select>
++            </div>
++
++            <div class="col-md-2 d-flex gap-2">
++                <button type="submit" class="btn btn-primary">Terapkan</button>
++                <a href="{{ route('dokter.index') }}" class="btn btn-outline-secondary">Reset</a>
++            </div>
++        </form>
++    </div>
++
++    @if ($search !== '')
++        <p>Hasil pencarian: <strong>{{ $search }}</strong></p>
++    @endif
++
++    <p>Menampilkan {{ $doctors->count() }} dari {{ $doctors->total() }} data.</p>
++
+     <div class="table-responsive">
+         <table class="table table-bordered table-striped align-middle">
+             <thead>
+@@ -35,7 +90,7 @@
+             <tbody>
+                 @forelse ($doctors as $doctor)
+                     <tr>
+-                        <td>{{ $loop->iteration }}</td>
++                        <td>{{ $doctors->firstItem() + $loop->index }}</td>
+                         <td>{{ $doctor->doctor_code }}</td>
+                         <td>{{ $doctor->name }}</td>
+                         <td>{{ $doctor->specialization }}</td>
+@@ -60,11 +115,20 @@ class="btn btn-sm btn-primary"
+                 @empty
+                     <tr>
+                         <td colspan="8" class="text-center">
+-                            Belum ada data dokter.
++                            @if ($isFiltered)
++                                Tidak ada dokter yang cocok dengan pencarian atau filter.
++                                <a href="{{ route('dokter.index') }}">Reset filter</a>
++                            @else
++                                Belum ada data dokter.
++                            @endif
+                         </td>
+                     </tr>
+                 @endforelse
+             </tbody>
+         </table>
+     </div>
++
++    <div class="mt-3">
++        {{ $doctors->links() }}
++    </div>
+ @endsection
+diff --git a/resources/views/pasien/index.blade.php b/resources/views/pasien/index.blade.php
+index f0a61b7..41025b8 100644
+--- a/resources/views/pasien/index.blade.php
++++ b/resources/views/pasien/index.blade.php
+@@ -4,7 +4,6 @@
+ 
+ @section('content')
+     <h1>{{ $judul }}</h1>
+-    <p>Jumlah pasien: {{ $jumlahPasien }}</p>
+ 
+     @if (session('success'))
+         <p role="status" style="color: green;">
+@@ -16,6 +15,52 @@
+         <a href="{{ route('pasien.create') }}" class="btn btn-sm btn-outline-secondary">Tambah Pasien</a>
+     </p>
+ 
++    <div class="mb-3">
++        <form method="GET" action="{{ route('pasien.index') }}" class="row g-2">
++            <div class="col-md-3">
++                <input type="text"
++                       name="search"
++                       value="{{ $search }}"
++                       placeholder="Nama / No. RM"
++                       class="form-control">
++            </div>
++
++            <div class="col-md-2">
++                <select name="gender" class="form-select">
++                    <option value="">Semua Gender</option>
++                    <option value="L" @selected($gender === 'L')>Laki-laki</option>
++                    <option value="P" @selected($gender === 'P')>Perempuan</option>
++                </select>
++            </div>
++
++            <div class="col-md-2">
++                <select name="sort" class="form-select">
++                    <option value="name" @selected($sort === 'name')>Urut: Nama</option>
++                    <option value="medical_record_number" @selected($sort === 'medical_record_number')>Urut: Nomor RM</option>
++                    <option value="created_at" @selected($sort === 'created_at')>Urut: Tanggal Input</option>
++                </select>
++            </div>
++
++            <div class="col-md-2">
++                <select name="direction" class="form-select">
++                    <option value="asc" @selected($direction === 'asc')>A-Z / Terlama</option>
++                    <option value="desc" @selected($direction === 'desc')>Z-A / Terbaru</option>
++                </select>
++            </div>
++
++            <div class="col-md-3 d-flex gap-2">
++                <button type="submit" class="btn btn-primary">Terapkan</button>
++                <a href="{{ route('pasien.index') }}" class="btn btn-outline-secondary">Reset</a>
++            </div>
++        </form>
++    </div>
++
++    @if ($search !== '')
++        <p>Hasil pencarian: <strong>{{ $search }}</strong></p>
++    @endif
++
++    <p>Menampilkan {{ $patients->count() }} dari {{ $patients->total() }} data.</p>
++
+     <div style="overflow-x: auto;">
+         <table border="1" cellpadding="10" cellspacing="0"
+                style="width: 100%; border-collapse: collapse;">
+@@ -34,7 +79,7 @@
+             <tbody>
+                 @forelse ($patients as $patient)
+                     <tr>
+-                        <td>{{ $loop->iteration }}</td>
++                        <td>{{ $patients->firstItem() + $loop->index }}</td>
+                         <td>{{ $patient->medical_record_number }}</td>
+                         <td>{{ $patient->name }}</td>
+                         <td>
+@@ -67,10 +112,21 @@
+                     </tr>
+                 @empty
+                     <tr>
+-                        <td colspan="8">Belum ada data pasien.</td>
++                        <td colspan="8" class="text-center">
++                            @if ($isFiltered)
++                                Tidak ada pasien yang cocok dengan pencarian atau filter.
++                                <a href="{{ route('pasien.index') }}">Reset filter</a>
++                            @else
++                                Belum ada data pasien.
++                            @endif
++                        </td>
+                     </tr>
+                 @endforelse
+             </tbody>
+         </table>
+     </div>
++
++    <div class="mt-3">
++        {{ $patients->links() }}
++    </div>
+ @endsection

@@ -7,6 +7,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Registration extends Model
 {
+    /**
+     * Daftar status pendaftaran: nilai di database => label dan warna badge.
+     */
+    public const STATUSES = [
+        'waiting' => ['label' => 'Menunggu', 'badge' => 'text-bg-warning'],
+        'done' => ['label' => 'Selesai', 'badge' => 'text-bg-success'],
+        'cancelled' => ['label' => 'Dibatalkan', 'badge' => 'text-bg-danger'],
+    ];
+
     protected $fillable = [
         'patient_id',
         'doctor_id',
@@ -20,6 +29,16 @@ class Registration extends Model
         return [
             'registration_date' => 'date',
         ];
+    }
+
+    public function statusLabel(): string
+    {
+        return self::STATUSES[$this->status]['label'] ?? (string) $this->status;
+    }
+
+    public function statusBadge(): string
+    {
+        return self::STATUSES[$this->status]['badge'] ?? 'text-bg-secondary';
     }
 
     public function patient(): BelongsTo
